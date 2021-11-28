@@ -2,6 +2,7 @@ import torch
 import torchaudio
 from typing import Tuple, Dict, Optional, List, Union
 from torch.nn.utils.rnn import pad_sequence
+from utils.batch_sampler import Batch
 
 class LJSpeechDataset(torchaudio.datasets.LJSPEECH):
 
