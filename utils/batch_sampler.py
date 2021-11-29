@@ -13,6 +13,8 @@ class Batch:
     tokens: torch.Tensor
     token_lengths: torch.Tensor
     durations: Optional[torch.Tensor] = None
+    melspec: torch.Tensor = None
+
 
     def to(self, device: torch.device) -> 'Batch':
         raise NotImplementedError

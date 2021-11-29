@@ -58,12 +58,11 @@ class SelfAttention(nn.Module):
 
 
 class MultiheadAttention(nn.Module):
-    def __init__(self, inp_size, num_heads, kernel_size=3):
+    def __init__(self, inp_size, num_heads, kernel_size=3, device=torch.device('cuda')):
         super(MultiheadAttention, self).__init__()
         assert inp_size % num_heads == 0
         # self.inp_size =  inp_size
         out_head_size = inp_size // num_heads
-
 
         self.query_emb = nn.Sequential(
             nn.Linear(inp_size, inp_size),
@@ -75,7 +74,7 @@ class MultiheadAttention(nn.Module):
             nn.Linear(inp_size, inp_size),
             nn.ReLU())
 
-        self.heads = [SelfAttention(inp_size, out_head_size, kernel_size) for _ in range(num_heads)]
+        self.heads = [SelfAttention(inp_size, out_head_size, kernel_size).to(device) for _ in range(num_heads)]
         self.out_linear = nn.Linear(inp_size, inp_size)
 
     def forward(self, input: Tensor):
@@ -96,9 +95,9 @@ class MultiheadAttention(nn.Module):
 
 
 class FFTBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, kernel_size):
+    def __init__(self, hidden_size, num_heads, kernel_size, device):
         super(FFTBlock, self).__init__()
-        self.multihead_attn = MultiheadAttention(hidden_size, num_heads, kernel_size)
+        self.multihead_attn = MultiheadAttention(hidden_size, num_heads, kernel_size, device)
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.conv = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
                                   nn.ReLU(),
