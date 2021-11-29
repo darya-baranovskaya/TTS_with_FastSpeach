@@ -1,6 +1,9 @@
 import torch
 from torch import nn
 import torchaudio
+import warnings
+import sys
+sys.path.append('waveglow/')
 
 
 class Vocoder(nn.Module):
