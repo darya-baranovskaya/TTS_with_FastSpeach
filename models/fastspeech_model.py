@@ -9,26 +9,24 @@ class FastSpeechEncoder(nn.Module):
         super(FastSpeechEncoder, self).__init__()
         self.tok_emb = TokenEmbedding(vocab_size, hidden_size)
         self.pos_encoding = PositionalEncoding(emb_size=hidden_size, dropout=0)
-        self.fft_blocks = torch.nn.ModuleList([FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
+        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
 
     def forward(self, input: Tensor):
         out = self.pos_encoding(self.tok_emb(input))
         # out.shape : bs, seq_len, emb_dim
-        for i in range(len(self.fft_blocks)):
-            out = self.fft_blocks[i](out)
+        out = self.fft_blocks(out)
         return out
 
 class FastSpeechDecoder(nn.Module):
     def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, n_fft_blocks, device):
         super(FastSpeechDecoder, self).__init__()
         self.pos_encoding = PositionalEncoding(emb_size=hidden_size, dropout=0)
-        self.fft_blocks = torch.nn.ModuleList([FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
+        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
         self.linear = nn.Linear(hidden_size, 80)
 
     def forward(self, input: Tensor):
         out = self.pos_encoding(input)
-        for i in range(len(self.fft_blocks)):
-            out = self.fft_blocks[i](out)
+        out = self.fft_blocks(out)
         out = self.linear(out)
         return out
 
