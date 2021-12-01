@@ -74,7 +74,7 @@ class MultiheadAttention(nn.Module):
             nn.Linear(inp_size, inp_size),
             nn.ReLU())
 
-        self.heads = [SelfAttention(inp_size, out_head_size, kernel_size).to(device) for _ in range(num_heads)]
+        self.heads = torch.nn.ModuleList([SelfAttention(inp_size, out_head_size, kernel_size).to(device) for _ in range(num_heads)])
         self.out_linear = nn.Linear(inp_size, inp_size)
 
     def forward(self, input: Tensor):
@@ -95,13 +95,13 @@ class MultiheadAttention(nn.Module):
 
 
 class FFTBlock(nn.Module):
-    def __init__(self, hidden_size, num_heads, kernel_size, device):
+    def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, device):
         super(FFTBlock, self).__init__()
         self.multihead_attn = MultiheadAttention(hidden_size, num_heads, kernel_size, device)
         self.layer_norm1 = nn.LayerNorm(hidden_size)
-        self.conv = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
+        self.conv = nn.Sequential(nn.Conv1d(hidden_size, hidden_size2, kernel_size, padding='same'),
                                   nn.ReLU(),
-                                  nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'))
+                                  nn.Conv1d(hidden_size2, hidden_size, kernel_size, padding='same'))
         self.layer_norm2 = nn.LayerNorm(hidden_size)
 
     def forward(self, input: Tensor):
@@ -110,7 +110,7 @@ class FFTBlock(nn.Module):
         x = self.layer_norm1(x + input)
         # x.shape : bs, seq_len, emb_dim
         out = torch.transpose(self.conv(torch.transpose(x, 1, 2)), 1, 2)
-        out = self.layer_norm1(out + x)
+        out = self.layer_norm2(out + x)
         return out
 
 
