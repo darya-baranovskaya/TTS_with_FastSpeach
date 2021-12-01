@@ -167,3 +167,7 @@ class GraphemeAligner(nn.Module):
         for i, p in enumerate(path):
             trellis_with_path[p.time_index, p.token_index] = float('nan')
         plt.imshow(trellis_with_path[1:, 1:].T, origin='lower')
+#
+#
+# # device = torch.device('cuda:0')
+# aligner = GraphemeAligner().to(device)
