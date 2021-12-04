@@ -58,7 +58,7 @@ class SelfAttention(nn.Module):
 
 
 class MultiheadAttention(nn.Module):
-    def __init__(self, inp_size, num_heads, kernel_size=3, device=torch.device('cuda')):
+    def __init__(self, inp_size, num_heads, kernel_size=3):
         super(MultiheadAttention, self).__init__()
         assert inp_size % num_heads == 0
         # self.inp_size =  inp_size
@@ -74,7 +74,7 @@ class MultiheadAttention(nn.Module):
             nn.Linear(inp_size, inp_size),
             nn.ReLU())
 
-        self.heads = torch.nn.ModuleList([SelfAttention(inp_size, out_head_size, kernel_size).to(device) for _ in range(num_heads)])
+        self.heads = torch.nn.ModuleList([SelfAttention(inp_size, out_head_size, kernel_size) for _ in range(num_heads)])
         self.out_linear = nn.Linear(inp_size, inp_size)
 
     def forward(self, input: Tensor):
@@ -95,41 +95,45 @@ class MultiheadAttention(nn.Module):
 
 
 class FFTBlock(nn.Module):
-    def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, device):
+    def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, dropout):
         super(FFTBlock, self).__init__()
-        self.multihead_attn = MultiheadAttention(hidden_size, num_heads, kernel_size, device)
+        self.dropout1 = nn.Dropout(dropout)
+        self.multihead_attn = MultiheadAttention(hidden_size, num_heads, kernel_size)
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.conv = nn.Sequential(nn.Conv1d(hidden_size, hidden_size2, kernel_size, padding='same'),
                                   nn.ReLU(),
                                   nn.Conv1d(hidden_size2, hidden_size, kernel_size, padding='same'))
+        self.dropout2 = nn.Dropout(dropout)
         self.layer_norm2 = nn.LayerNorm(hidden_size)
 
     def forward(self, input: Tensor):
         # input.shape : bs, seq_len, emb_dim
         x = self.multihead_attn(input)
-        x = self.layer_norm1(x + input)
+        x = self.dropout1(self.layer_norm1(x + input))
         # x.shape : bs, seq_len, emb_dim
         out = torch.transpose(self.conv(torch.transpose(x, 1, 2)), 1, 2)
-        out = self.layer_norm2(out + x)
+        out = self.dropout2(self.layer_norm2(out + x))
         return out
 
 
 class Aligner(nn.Module):
-    def __init__(self, hidden_size, kernel_size):
+    def __init__(self, hidden_size, kernel_size, dropout):
         super(Aligner, self).__init__()
         self.conv1 = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
                                    nn.ReLU())
         self.layer_norm1 = nn.LayerNorm(hidden_size, hidden_size)
+        self.dropout1 = nn.Dropout(dropout)
         self.conv2 = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
                                    nn.ReLU())
         self.layer_norm2 = nn.LayerNorm(hidden_size, hidden_size)
+        self.dropout2 = nn.Dropout(dropout)
         self.linear = nn.Linear(hidden_size, 1)
 
     def forward(self, input: Tensor):
         # input.shape : bs, seq_len, emb_dim
         out = torch.transpose(self.conv1(torch.transpose(input, 1, 2)), 1, 2)
-        out = self.layer_norm1(out)
+        out = self.dropout1(self.layer_norm1(out))
         out = torch.transpose(self.conv1(torch.transpose(out, 1, 2)), 1, 2)
-        self.layer_norm2(out)
+        out = self.dropout2(self.layer_norm2(out))
         out = self.linear(out)
         return out

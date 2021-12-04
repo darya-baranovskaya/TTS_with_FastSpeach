@@ -5,23 +5,23 @@ from models.grapheme_aligner import GraphemeAligner
 from torch.nn.utils.rnn import pad_sequence
 
 class FastSpeechEncoder(nn.Module):
-    def __init__(self, vocab_size, hidden_size, hidden_size2, num_heads, kernel_size, n_fft_blocks, device):
+    def __init__(self, vocab_size, hidden_size, hidden_size2, num_heads, kernel_size, n_fft_blocks, dropout):
         super(FastSpeechEncoder, self).__init__()
         self.tok_emb = TokenEmbedding(vocab_size, hidden_size)
         self.pos_encoding = PositionalEncoding(emb_size=hidden_size, dropout=0)
-        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
+        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, dropout) for _ in range(n_fft_blocks)])
 
     def forward(self, input: Tensor):
         out = self.pos_encoding(self.tok_emb(input))
-        # out.shape : bs, seq_len, emb_dim
+        # out.shape : bs, seq_len, emb_dims
         out = self.fft_blocks(out)
         return out
 
 class FastSpeechDecoder(nn.Module):
-    def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, n_fft_blocks, device):
+    def __init__(self, hidden_size, hidden_size2, num_heads, kernel_size, n_fft_blocks, dropout):
         super(FastSpeechDecoder, self).__init__()
         self.pos_encoding = PositionalEncoding(emb_size=hidden_size, dropout=0)
-        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, device).to(device) for _ in range(n_fft_blocks)])
+        self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, dropout) for _ in range(n_fft_blocks)])
         self.linear = nn.Linear(hidden_size, 80)
 
     def forward(self, input: Tensor):
@@ -36,12 +36,12 @@ class FastSpeech(nn.Module):
         self.encoder = FastSpeechEncoder(config.vocab_size, config.hidden_size,
                                          config.hidden_size_fft,
                                          config.num_heads, config.kernel_size,
-                                         config.n_fft_blocks, config.device)
-        self.aligner = Aligner(config.hidden_size, config.kernel_size)
+                                         config.n_fft_blocks, config.dropout)
+        self.aligner = Aligner(config.hidden_size, config.kernel_size, config.dropout)
         self.decoder = FastSpeechDecoder(config.hidden_size, config.hidden_size_fft,
                                          config.num_heads,
                                          config.kernel_size, config.n_fft_blocks,
-                                         config.device)
+                                         config.dropout)
 
     def forward(self, input, alignes=None):
         input = self.encoder(input)
