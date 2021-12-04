@@ -48,10 +48,8 @@ class FastSpeech(nn.Module):
         length_pred = self.aligner(input).squeeze(-1)
         out = []
         if alignes is None:
-            ones = torch.ones(length_pred.shape).to(input.device)
             alignes = length_pred
-            alignes, _ = torch.max(torch.stack([ones, alignes], dim=0), dim=0)
-            alignes = alignes.type(torch.LongTensor).to(input.device)
+        alignes = (alignes + 0.5).type(torch.LongTensor).to(input.device)
         for i in range(input.shape[0]):
             curr_elem = torch.repeat_interleave(input[i], alignes[i], dim=0)
             out.append(curr_elem)
