@@ -122,21 +122,21 @@ class FFTBlock(nn.Module):
 class Aligner(nn.Module):
     def __init__(self, hidden_size, kernel_size, dropout):
         super(Aligner, self).__init__()
-        self.conv1 = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
-                                   nn.ReLU())
-        self.layer_norm1 = nn.LayerNorm(hidden_size, hidden_size)
-        self.dropout1 = nn.Dropout(dropout)
-        self.conv2 = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same'),
-                                   nn.ReLU())
-        self.layer_norm2 = nn.LayerNorm(hidden_size, hidden_size)
-        self.dropout2 = nn.Dropout(dropout)
-        self.linear = nn.Linear(hidden_size, 1)
+        self.conv1 = nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same')
+        self.block1 = nn.Sequential(nn.LayerNorm(hidden_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(dropout))
+        self.conv2 = nn.Conv1d(hidden_size, hidden_size, kernel_size, padding='same')
+        self.block2 = nn.Sequential(nn.LayerNorm(hidden_size),
+                                    nn.ReLU(),
+                                    nn.Dropout(dropout))
+        self.linear = nn.Sequential(nn.Linear(hidden_size, 1), nn.ReLU())
 
     def forward(self, input: Tensor):
         # input.shape : bs, seq_len, emb_dim
         out = torch.transpose(self.conv1(torch.transpose(input, 1, 2)), 1, 2)
-        out = self.layer_norm1(self.dropout1(out))
+        out = self.block1(out)
         out = torch.transpose(self.conv1(torch.transpose(out, 1, 2)), 1, 2)
-        out = self.layer_norm2(self.dropout2(out))
+        out = self.block2(out)
         out = self.linear(out)
         return out
