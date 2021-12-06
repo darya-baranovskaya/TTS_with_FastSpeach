@@ -11,10 +11,10 @@ class FastSpeechEncoder(nn.Module):
         self.pos_encoding = PositionalEncoding(emb_size=hidden_size, dropout=0)
         self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, dropout) for _ in range(n_fft_blocks)])
 
-    def forward(self, input: Tensor,  mask: Tensor):
+    def forward(self, input: Tensor):
         out = self.pos_encoding(self.tok_emb(input))
         # out.shape : bs, seq_len, emb_dims
-        out, _ = self.fft_blocks([out, mask])
+        out = self.fft_blocks(out)
         return out
 
 class FastSpeechDecoder(nn.Module):
@@ -24,9 +24,9 @@ class FastSpeechDecoder(nn.Module):
         self.fft_blocks = nn.Sequential(*[FFTBlock(hidden_size, hidden_size2, num_heads, kernel_size, dropout) for _ in range(n_fft_blocks)])
         self.linear = nn.Linear(hidden_size, 80)
 
-    def forward(self, input: Tensor, mask: Tensor):
+    def forward(self, input: Tensor):
         out = self.pos_encoding(input)
-        out, _ = self.fft_blocks([out, mask])
+        out = self.fft_blocks(out)
         out = self.linear(out)
         return out
 
@@ -43,11 +43,10 @@ class FastSpeech(nn.Module):
                                          config.kernel_size, config.n_fft_blocks,
                                          config.dropout)
 
-    def forward(self, input, mask:Tensor=None, alignes=None):
-        input = self.encoder(input, mask)
+    def forward(self, input, alignes=None):
+        input = self.encoder(input)
         length_pred = self.aligner(input).squeeze(-1)
         out = []
-        out_mask = []
         if alignes is None:
             # alignes = length_pred
             zeros = torch.zeros(length_pred.shape).to(input.device)
@@ -56,14 +55,7 @@ class FastSpeech(nn.Module):
         for i in range(input.shape[0]):
             curr_elem = torch.repeat_interleave(input[i], alignes[i], dim=0)
             out.append(curr_elem)
-        if mask is None:
-            out_mask = None
-        else:
-            for i in range(input.shape[0]):
-                curr_mask = torch.repeat_interleave(mask[i], alignes[i], dim=0)
-                out_mask.append(curr_mask)
-            out_mask = pad_sequence(out_mask, batch_first=True)
         out = pad_sequence(out, batch_first=True)
-        out = self.decoder(out, out_mask)
+        out = self.decoder(out)
         out = torch.transpose(out, 1, 2)
         return out, length_pred

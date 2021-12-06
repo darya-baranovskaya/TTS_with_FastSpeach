@@ -44,18 +44,16 @@ class SelfAttention(nn.Module):
         self.vw = nn.Linear(inp_size, out_size)
         self.softmax = nn.Softmax()
 
-    def forward(self, q, k, v, mask):
+    def forward(self, q, k, v):
         q = self.qw(q)
         k = torch.transpose(self.kw(k), 1, 2)
         v = self.vw(v)
-        out = torch.matmul(q, k) / math.sqrt(self.out_size)
-        if mask is not None:
-            out[mask == False] = 1e-9
+        out = torch.softmax(torch.matmul(q, k) / math.sqrt(self.out_size), dim=-1)
         # print("q", q.shape)
         # print("k", k.shape)
         # print("v", v.shape)
         # print("out", out.shape)
-        out = torch.matmul(torch.softmax(out, dim=-1), v)
+        out = torch.matmul(out, v)
         return out
 
 
@@ -76,21 +74,21 @@ class MultiheadAttention(nn.Module):
             nn.Linear(inp_size, inp_size),
             nn.ReLU())
 
-        self.heads = torch.nn.ModuleList([SelfAttention(inp_size, out_head_size, kernel_size) for _ in range(num_heads)])
+        self.heads = torch.nn.ModuleList([SelfAttention(inp_size, out_head_size, kernel_size).to(torch.device('cuda')) for _ in range(num_heads)])
         self.out_linear = nn.Linear(inp_size, inp_size)
 
-    def forward(self, input: Tensor, mask: Tensor):
+    def forward(self, input: Tensor):
         # input.shape : bs, seq_len, emb_dim
-        # q = self.query_emb(input)
-        # k = self.key_emb(input)
-        # v = self.value_emb(input)
+        q = self.query_emb(input)
+        k = self.key_emb(input)
+        v = self.value_emb(input)
         # print("q", q.shape)
         # print("k", k.shape)
         # print("v", v.shape)
 
         out = []
         for i in range(len(self.heads)):
-            out.append(self.heads[i](input, input, input, mask))
+            out.append(self.heads[i](q, k, v))
         out = torch.cat(out, dim=-1)
         out = self.out_linear(out)
         return out
@@ -108,15 +106,14 @@ class FFTBlock(nn.Module):
         self.dropout2 = nn.Dropout(dropout)
         self.layer_norm2 = nn.LayerNorm(hidden_size)
 
-    def forward(self, input: [Tensor, Tensor]):
-        input, mask = input[0], input[1]
+    def forward(self, input: Tensor):
         # input.shape : bs, seq_len, emb_dim
-        x = self.multihead_attn(input, mask)
+        x = self.multihead_attn(input)
         x = self.dropout1(self.layer_norm1(x + input))
         # x.shape : bs, seq_len, emb_dim
         out = torch.transpose(self.conv(torch.transpose(x, 1, 2)), 1, 2)
         out = self.dropout2(self.layer_norm2(out + x))
-        return [out, mask]
+        return out
 
 
 class Aligner(nn.Module):
